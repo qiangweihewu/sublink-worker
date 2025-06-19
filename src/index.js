@@ -250,6 +250,13 @@ async function handleRequest(request) {
         }
 
         // 验证 JSON 格式
+        if (typeof configString !== 'string' || configString.trim() === '') {
+            console.error('Config validation error: configString is empty or not a string.');
+            return new Response(t('invalidFormat') + ' The configuration content cannot be empty.', {
+                status: 400,
+                headers: { 'Content-Type': 'text/plain' }
+            });
+        }
         JSON.parse(configString);
 
         await SUBLINK_KV.put(configId, configString, {
