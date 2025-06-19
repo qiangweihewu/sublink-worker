@@ -173,156 +173,89 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
     }
 
     addAutoSelectGroup(proxyList) {
-        // proxyList here is actualProxyNames from BaseConfigBuilder
-        const unifiedRuleNames = this.getOutboundsList(); // Method from BaseConfigBuilder
-        this._buildProxyGroups(proxyList, unifiedRuleNames, this.customRules);
+        this.config['proxy-groups'] = this.config['proxy-groups'] || [];
+        // Ensure 'Auto Select' is not added if it already exists
+        if (!this.config['proxy-groups'].find(g => g.name === t('outboundNames.Auto Select'))) {
+            this.config['proxy-groups'].push({
+                name: t('outboundNames.Auto Select'),
+                type: 'url-test',
+                proxies: DeepCopy(proxyList),
+                url: 'http://www.gstatic.com/generate_204',
+                interval: 300,
+                lazy: false
+            });
+        }
     }
 
-    addNodeSelectGroup(proxyList) { /* All groups built by _buildProxyGroups via addAutoSelectGroup */ }
-    addOutboundGroups(outbounds, proxyList) { /* All groups built by _buildProxyGroups via addAutoSelectGroup */ }
-    addCustomRuleGroups(proxyList) { /* All groups built by _buildProxyGroups via addAutoSelectGroup */ }
-    addFallBackGroup(proxyList) { /* All groups built by _buildProxyGroups via addAutoSelectGroup */ }
+    addNodeSelectGroup(proxyList) {
+        this.config['proxy-groups'] = this.config['proxy-groups'] || [];
+        const nodeSelectGroupName = t('outboundNames.Node Select');
+        // Remove if already exists to re-add at unshift position
+        this.config['proxy-groups'] = this.config['proxy-groups'].filter(g => g.name !== nodeSelectGroupName);
 
-    _buildProxyGroups(actualProxyNames, unifiedRuleNames, customRulesFromParam) {
-        // actualProxyNames is passed as proxyList from addAutoSelectGroup
-        // unifiedRuleNames is passed from this.getOutboundsList()
-        // customRulesFromParam is this.customRules
-
-        const newProxyGroups = [];
-        const unifiedRuleObjects = this._generateRules(); // Uses this.selectedRules internally
-
-        // 1. Global Direct Group
-        newProxyGroups.push({
-            name: t('outboundNames.Global Direct'),
-            type: 'select',
-            proxies: ['DIRECT']
+        let selectorProxies = [
+            'DIRECT',
+            'REJECT',
+            t('outboundNames.Auto Select'),
+            ...DeepCopy(proxyList)
+        ];
+        this.config['proxy-groups'].unshift({
+            type: "select",
+            name: nodeSelectGroupName,
+            proxies: selectorProxies
         });
+    }
 
-        // 2. Global Block Group
-        newProxyGroups.push({
-            name: t('outboundNames.Global Block'),
-            type: 'select',
-            proxies: ['REJECT', 'DIRECT']
-        });
-
-        // 3. Auto Select Group
-        newProxyGroups.push({
-            name: t('outboundNames.Auto Select'),
-            type: 'url-test',
-            proxies: DeepCopy(actualProxyNames),
-            url: 'http://www.gstatic.com/generate_204',
-            interval: 300,
-            lazy: false // Explicitly set lazy to false as per common Clash configurations
-        });
-
-        // 4. Node Select Group
-        newProxyGroups.push({
-            name: t('outboundNames.Node Select'),
-            type: 'select',
-            proxies: [
-                t('outboundNames.Auto Select'),
-                t('outboundNames.Global Direct'),
-                ...actualProxyNames
-            ]
-        });
-
-        // 5. Lazy Config Group
-        newProxyGroups.push({
-            name: t('outboundNames.Lazy Config'),
-            type: 'fallback', // Fallback type for lazy loading behavior
-            proxies: [
-                t('outboundNames.Node Select'),
-                t('outboundNames.Auto Select'),
-                t('outboundNames.Global Direct'),
-                ...actualProxyNames // Include actual proxies for broader fallback
-            ],
-            url: 'http://www.gstatic.com/generate_204',
-            interval: 300
-        });
-
-        // 6. Uncaught Fish Group (replaces Fall Back)
-        newProxyGroups.push({
-            name: t('outboundNames.Uncaught Fish'),
-            type: 'select',
-            proxies: [
-                t('outboundNames.Lazy Config'),
-                t('outboundNames.Node Select'),
-                t('outboundNames.Global Direct'),
-                t('outboundNames.Auto Select')
-            ]
-        });
-
-        // 7. Service-specific groups from UNIFIED_RULES
-        // We need the full rule objects to check rule.name for 'Ad Block'
-        // generateRules returns an array of objects like { name: 'Ad Block', site_rules: [...], ... }
-        // The `outbounds` from getOutbounds(this.selectedRules) is just a list of names.
-        // We should iterate unifiedRuleObjects which contains the full rule details.
-
-        const serviceRuleNames = new Set();
-
-        unifiedRuleObjects.forEach(rule => {
-            const groupName = t(`outboundNames.${rule.outbound}`); // rule.outbound is the 'name' like 'Google'
-            serviceRuleNames.add(groupName); // Keep track of names for ordering if needed later
-
-            let groupProxies;
-            if (rule.outbound === 'Ad Block') {
-                groupProxies = [
-                    t('outboundNames.Global Block'),
-                ];
-            } else {
-                groupProxies = [
-                    t('outboundNames.Lazy Config'),
-                    t('outboundNames.Node Select'),
-                    ...actualProxyNames
-                ];
+    addOutboundGroups(outbounds, proxyList) {
+        this.config['proxy-groups'] = this.config['proxy-groups'] || [];
+        outbounds.forEach(outboundRuleName => {
+            const groupName = t(`outboundNames.${outboundRuleName}`);
+            if (!this.config['proxy-groups'].find(g => g.name === groupName)) {
+                this.config['proxy-groups'].push({
+                    type: "select",
+                    name: groupName,
+                    proxies: [t('outboundNames.Node Select'), ...DeepCopy(proxyList)]
+                });
             }
-            newProxyGroups.push({
-                name: groupName,
-                type: 'select',
-                proxies: groupProxies
-            });
         });
+    }
 
-        // 8. All groups from customRules
-        if (Array.isArray(customRulesFromParam)) {
-            customRulesFromParam.forEach(rule => {
-                const customGroupName = t(`outboundNames.${rule.name}`);
-                if (!serviceRuleNames.has(customGroupName)) {
-                    newProxyGroups.push({
-                        name: customGroupName,
-                        type: 'select',
-                        proxies: [
-                            t('outboundNames.Lazy Config'),
-                            t('outboundNames.Node Select'),
-                            ...actualProxyNames
-                        ]
+    addCustomRuleGroups(proxyList) {
+        this.config['proxy-groups'] = this.config['proxy-groups'] || [];
+        if (Array.isArray(this.customRules)) {
+            this.customRules.forEach(rule => {
+                const groupName = t(`outboundNames.${rule.name}`, rule.name);
+                if (!this.config['proxy-groups'].find(g => g.name === groupName)) {
+                    this.config['proxy-groups'].push({
+                        type: "select",
+                        name: groupName,
+                        proxies: [t('outboundNames.Node Select'), ...DeepCopy(proxyList)]
                     });
                 }
             });
         }
-
-        // Deduplicate proxy groups by name, keeping the first occurrence (respecting the order)
-        const finalProxyGroups = [];
-        const seenNames = new Set();
-        for (const group of newProxyGroups) {
-            if (!seenNames.has(group.name)) {
-                finalProxyGroups.push(group);
-                seenNames.add(group.name);
-            }
-        }
-
-        this.config['proxy-groups'] = finalProxyGroups;
     }
 
+    addFallBackGroup(proxyList) {
+        this.config['proxy-groups'] = this.config['proxy-groups'] || [];
+        const fallBackGroupName = t('outboundNames.Fall Back');
+        if (!this.config['proxy-groups'].find(g => g.name === fallBackGroupName)) {
+            this.config['proxy-groups'].push({
+                type: "select",
+                name: fallBackGroupName,
+                proxies: [t('outboundNames.Node Select'), ...DeepCopy(proxyList)]
+            });
+        }
+    }
 
     formatConfig() {
         // Ensure proxies are initialized
         this.config.proxies = this.config.proxies || [];
 
-        // NOTE: _buildProxyGroups() is NO LONGER CALLED HERE.
-        // It's called via addAutoSelectGroup, which is called by super.build() -> this.addSelectors()
+        // Note: Group building methods (addAutoSelectGroup, etc.) are called by BaseConfigBuilder.addSelectors()
+        // which is called by BaseConfigBuilder.build()
 
-        const rulesFromConfigJs = this._generateRules(); // Use the renamed version
+        const rulesFromConfigJs = this._generateRules();
         const ruleResults = [];
         
         const { site_rule_providers, ip_rule_providers } = generateClashRuleSets(this.selectedRules, this.customRules);
@@ -333,40 +266,41 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
         };
 
         rulesFromConfigJs.forEach(rule => {
-            const targetGroup = (rule.outbound === 'Ad Block')
-                ? t('outboundNames.Global Block')
+            // For Ad Block rules, target REJECT directly. Otherwise, target the translated group name.
+            const targetGroupOrPolicy = (rule.outbound === 'Ad Block')
+                ? 'REJECT'
                 : t(`outboundNames.${rule.outbound}`);
 
             if (rule.domain_suffix && rule.domain_suffix.length > 0) {
                 rule.domain_suffix.forEach(suffix => {
-                    if (suffix) ruleResults.push(`DOMAIN-SUFFIX,${suffix},${targetGroup}`);
+                    if (suffix) ruleResults.push(`DOMAIN-SUFFIX,${suffix},${targetGroupOrPolicy}`);
                 });
             }
             if (rule.domain_keyword && rule.domain_keyword.length > 0) {
                 rule.domain_keyword.forEach(keyword => {
-                    if (keyword) ruleResults.push(`DOMAIN-KEYWORD,${keyword},${targetGroup}`);
+                    if (keyword) ruleResults.push(`DOMAIN-KEYWORD,${keyword},${targetGroupOrPolicy}`);
                 });
             }
             if (rule.site_rules && rule.site_rules.length > 0 && rule.site_rules[0] !== '') {
                  rule.site_rules.forEach(site => {
-                    if (site) ruleResults.push(`RULE-SET,${site},${targetGroup}`);
+                    if (site) ruleResults.push(`RULE-SET,${site},${targetGroupOrPolicy}`);
                 });
             }
             if (rule.ip_rules && rule.ip_rules.length > 0 && rule.ip_rules[0] !== '') {
                 rule.ip_rules.forEach(ip => {
-                    if (ip) ruleResults.push(`RULE-SET,${ip},${targetGroup},no-resolve`);
+                    if (ip) ruleResults.push(`RULE-SET,${ip},${targetGroupOrPolicy},no-resolve`);
                 });
             }
             if (rule.ip_cidr && rule.ip_cidr.length > 0) {
                  rule.ip_cidr.forEach(cidr => {
-                    if (cidr) ruleResults.push(`IP-CIDR,${cidr},${targetGroup},no-resolve`);
+                    if (cidr) ruleResults.push(`IP-CIDR,${cidr},${targetGroupOrPolicy},no-resolve`);
                 });
             }
         });
 
         this.config.rules = ruleResults;
-        // The final MATCH rule should point to Uncaught Fish
-        this.config.rules.push(`MATCH,${t('outboundNames.Uncaught Fish')}`);
+        // The final MATCH rule should point to Fall Back group
+        this.config.rules.push(`MATCH,${t('outboundNames.Fall Back')}`);
 
         return yaml.dump(this.config);
     }

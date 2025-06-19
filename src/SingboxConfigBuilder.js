@@ -52,155 +52,93 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
         this.config.outbounds.push(proxy);
     }
 
-    addAutoSelectGroup(proxyList) {
-        // proxyList here is actualProxyTags from BaseConfigBuilder
-        const unifiedRuleNames = this.getOutboundsList(); // Method from BaseConfigBuilder
-        this._buildOutbounds(proxyList, unifiedRuleNames, this.customRules);
-    }
+    addAutoSelectGroup(proxyList) { // proxyList is actualProxyTags
+        this.config.outbounds = this.config.outbounds || [];
+        const autoSelectTag = t('outboundNames.Auto Select');
 
-    addNodeSelectGroup(proxyList) { /* All outbounds built by _buildOutbounds via addAutoSelectGroup */ }
-    addOutboundGroups(outbounds, proxyList) { /* All outbounds built by _buildOutbounds via addAutoSelectGroup */ }
-    addCustomRuleGroups(proxyList) { /* All outbounds built by _buildOutbounds via addAutoSelectGroup */ }
-    addFallBackGroup(proxyList) { /* All outbounds built by _buildOutbounds via addAutoSelectGroup */ }
+        this.config.outbounds = this.config.outbounds.filter(o => o.tag !== autoSelectTag);
 
-    _buildOutbounds(actualProxyTags, unifiedRuleNames, customRulesFromParam) {
-        // actualProxyTags is passed as proxyList from addAutoSelectGroup
-        // unifiedRuleNames is passed from this.getOutboundsList()
-        // customRulesFromParam is this.customRules
-
-        let newOutbounds = [...SING_BOX_CONFIG.outbounds]; // Start with base
-
-        // 1. Auto Select Outbound
-        newOutbounds.push({
+        this.config.outbounds.unshift({
             type: "urltest",
-            tag: t('outboundNames.Auto Select'),
-            outbounds: DeepCopy(actualProxyTags),
-            url: 'http://www.gstatic.com/generate_204', // Standard test URL
-            interval: "300s", // Standard interval
+            tag: autoSelectTag,
+            outbounds: DeepCopy(proxyList),
+            url: 'http://www.gstatic.com/generate_204',
+            interval: "300s",
             lazy: false
         });
+    }
 
-        // 2. Node Select Outbound
-        newOutbounds.push({
+    addNodeSelectGroup(proxyList) { // proxyList is actualProxyTags
+        this.config.outbounds = this.config.outbounds || [];
+        const nodeSelectTag = t('outboundNames.Node Select');
+
+        this.config.outbounds = this.config.outbounds.filter(o => o.tag !== nodeSelectTag);
+
+        let selectorOutbounds = [
+            t('outboundNames.Auto Select'),
+            'DIRECT',
+            ...DeepCopy(proxyList)
+        ];
+        this.config.outbounds.unshift({
             type: "selector",
-            tag: t('outboundNames.Node Select'),
-            outbounds: [
-                t('outboundNames.Auto Select'),
-                'DIRECT',
-                ...actualProxyTags
-            ]
+            tag: nodeSelectTag,
+            outbounds: selectorOutbounds
         });
+    }
 
-        // 3. Lazy Config Outbound
-        newOutbounds.push({
-            type: "selector",
-            tag: t('outboundNames.Lazy Config'),
-            outbounds: [
-                t('outboundNames.Node Select'),
-                t('outboundNames.Auto Select'),
-                'DIRECT'
-            ]
-        });
+    addOutboundGroups(outbounds, proxyList) { // outbounds are rule names
+        this.config.outbounds = this.config.outbounds || [];
+        outbounds.forEach(outboundRuleName => {
+            const groupTag = t(`outboundNames.${outboundRuleName}`);
+            if (!this.config.outbounds.find(o => o.tag === groupTag)) {
+                if (outboundRuleName === 'Ad Block') return; // 'Ad Block' rules use action:reject
 
-        // 4. Uncaught Fish Outbound
-        newOutbounds.push({
-            type: "selector",
-            tag: t('outboundNames.Uncaught Fish'),
-            outbounds: [
-                t('outboundNames.Lazy Config'),
-                t('outboundNames.Node Select'),
-                t('outboundNames.Auto Select'),
-                'DIRECT'
-            ]
-        });
-
-        // Add actual proxy server configurations (already in this.config.outbounds if super.formatConfig or equivalent was called)
-        // So, we need to merge `newOutbounds` with `this.config.outbounds` containing proxies.
-        // Or, ensure this.config.outbounds only contains proxies before this step, then add them.
-
-        // Let's assume `this.config.outbounds` (from baseConfig in constructor, then modified by addProxyToConfig)
-        // currently holds the initial base (e.g. DIRECT) AND the actual proxies.
-        // We need to ensure actualProxyTags (which are just names) correctly refer to these existing proxy objects.
-        // The `actualProxyTags` param comes from `BaseConfigBuilder.getProxyNames(this.getProxies())`,
-        // where `this.getProxies()` filters `this.config.outbounds` for things with a `server` field.
-        // So, `actualProxyTags` is correct.
-
-        // We need to add the actual proxy objects from the current this.config.outbounds to newOutbounds.
-        const currentActualProxyObjects = this.config.outbounds.filter(o => o.server !== undefined);
-        newOutbounds.push(...currentActualProxyObjects);
-
-
-        // 5. Service-specific and Custom Rule Selector Outbounds
-        // generateRules uses this.selectedRules and this.customRules internally already for its logic.
-        // For consistency with how _buildProxyGroups in Clash worked, we'll use customRulesFromParam here.
-        const unifiedRuleObjects = generateRules(this.selectedRules, customRulesFromParam); // Pass param if it's meant to override this.customRules
-        const adBlockOutboundName = 'Ad Block';
-
-        unifiedRuleObjects.forEach(rule => {
-            if (rule.outbound !== adBlockOutboundName) {
-                const groupTag = t(`outboundNames.${rule.outbound}`);
-                newOutbounds.push({
-                    type: 'selector',
+                this.config.outbounds.push({
+                    type: "selector",
                     tag: groupTag,
-                    outbounds: [
-                        t('outboundNames.Lazy Config'),
-                        t('outboundNames.Node Select'),
-                        t('outboundNames.Auto Select'),
-                        'DIRECT',
-                        ...actualProxyTags
-                    ]
+                    outbounds: [t('outboundNames.Node Select'), ...DeepCopy(proxyList)]
                 });
             }
         });
+    }
 
-        if (Array.isArray(customRulesFromParam)) {
-            customRulesFromParam.forEach(rule => {
-                const groupTag = t(`outboundNames.${rule.name}`);
-                if (!newOutbounds.find(o => o.tag === groupTag)) { // Avoid duplicate tags
-                    newOutbounds.push({
-                        type: 'selector',
+    addCustomRuleGroups(proxyList) {
+        this.config.outbounds = this.config.outbounds || [];
+        if (Array.isArray(this.customRules)) {
+            this.customRules.forEach(rule => {
+                const groupTag = t(`outboundNames.${rule.name}`, rule.name);
+                if (!this.config.outbounds.find(o => o.tag === groupTag)) {
+                    this.config.outbounds.push({
+                        type: "selector",
                         tag: groupTag,
-                        outbounds: [
-                            t('outboundNames.Lazy Config'),
-                            t('outboundNames.Node Select'),
-                            t('outboundNames.Auto Select'),
-                            'DIRECT',
-                            ...actualProxyTags
-                        ]
+                        outbounds: [t('outboundNames.Node Select'), ...DeepCopy(proxyList)]
                     });
                 }
             });
         }
+    }
 
-        // Deduplicate outbounds by tag, keeping the first occurrence
-        const finalOutbounds = [];
-        const seenTags = new Set();
-        // Ensure DIRECT (and REJECT if it were still there) from base config are prioritized if not re-added
-        // SING_BOX_CONFIG.outbounds was already added at the start of newOutbounds.
-
-        for (const outbound of newOutbounds) {
-            if (!seenTags.has(outbound.tag)) {
-                finalOutbounds.push(outbound);
-                seenTags.add(outbound.tag);
-            }
+    addFallBackGroup(proxyList) {
+        this.config.outbounds = this.config.outbounds || [];
+        const fallBackTag = t('outboundNames.Fall Back');
+        if (!this.config.outbounds.find(o => o.tag === fallBackTag)) {
+            this.config.outbounds.push({
+                type: "selector",
+                tag: fallBackTag,
+                outbounds: [t('outboundNames.Node Select'), ...DeepCopy(proxyList)]
+            });
         }
-        this.config.outbounds = finalOutbounds;
     }
 
     formatConfig() {
-        // BaseConfigBuilder.build() (which is called by this.build()) will call:
-        // 1. this.parse() -> this.addProxy() -> this.addProxyToConfig() for each proxy.
-        //    This populates this.config.outbounds with DIRECT (from base) and actual proxies.
-        // 2. this.addSelectors() -> this.addAutoSelectGroup(actualProxyTagsFromProxies).
-        //    Our overridden addAutoSelectGroup then calls _buildOutbounds().
+        // Note: Outbound building methods (addAutoSelectGroup, etc.) are called by BaseConfigBuilder.addSelectors()
+        // which is called by BaseConfigBuilder.build()
 
-        // So, the direct call to _buildOutbounds() here is removed.
-
-        const generatedRules = generateRules(this.selectedRules, this.customRules); // This could also use customRulesFromParam if formatConfig took it
-        const { site_rule_sets, ip_rule_sets } = generateRuleSets(this.selectedRules, this.customRules); // Same here
+        const generatedRules = generateRules(this.selectedRules, this.customRules);
+        const { site_rule_sets, ip_rule_sets } = generateRuleSets(this.selectedRules, this.customRules);
 
         this.config.route.rule_set = [...site_rule_sets, ...ip_rule_sets];
-        this.config.route.rules = []; // Initialize/clear rules array
+        this.config.route.rules = [];
 
         const adBlockOutboundName = 'Ad Block';
 
@@ -228,7 +166,6 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
                 ruleConfig.ip_cidr = rule.ip_cidr.filter(ip => ip !== '');
             }
 
-            // Ensure the rule has at least one matcher
             const hasMatchers = ruleConfig.domain_suffix || ruleConfig.domain_keyword || ruleConfig.rule_set || ruleConfig.ip_cidr || ruleConfig.protocol;
 
             if (hasMatchers) {
@@ -244,12 +181,12 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
         this.config.route.rules.unshift(
             { clash_mode: 'direct', outbound: 'DIRECT' },
             { clash_mode: 'global', outbound: t('outboundNames.Node Select') },
-            { action: 'sniff' }, // Ensure sniff is added correctly as per original logic. The prompt mentioned {action: 'sniff'}
+            { action: 'sniff' },
             { protocol: 'dns', action: 'hijack-dns' }
         );
 
         this.config.route.auto_detect_interface = true;
-        this.config.route.final = t('outboundNames.Uncaught Fish'); // Updated final route
+        this.config.route.final = t('outboundNames.Fall Back'); // Updated final route to Fall Back
 
         return this.config;
     }
