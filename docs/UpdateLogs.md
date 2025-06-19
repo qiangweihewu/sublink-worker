@@ -12,6 +12,9 @@
     - 在“direct”模式 (`clash_mode: "direct"`)下，DNS 查询主要使用直连 DNS 服务器 (例如 AliDNS DoH)。
     - 在“global”模式 (`clash_mode: "global"`)下，DNS 查询主要使用适合代理的 DNS 服务器 (例如 Cloudflare DoH，DNS 查询本身通过选定的代理路由)。
   - 此更改使常规流量路由和 DNS 行为与所选 `clash_mode` 更紧密地保持一致。
+- 增强 Sing-box 特定服务组的配置。
+  - 'Location:CN' (国内服务), 'Private' (私有网络), 和 'Bilibili' (哔哩哔哩) 的选择器组现在默认使用 'DIRECT' (直连) 出站。
+  - 用户仍可根据需要为这些组手动选择其他选项，如 'Node Select' (节点选择) 或 'Auto Select' (自动选择)。
 
 ## 2025-04-30
 
