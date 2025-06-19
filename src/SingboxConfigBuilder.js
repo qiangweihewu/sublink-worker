@@ -117,9 +117,9 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
                     type: "selector",
                     tag: groupTag,
                     outbounds: [
-                        "DIRECT",
                         t('outboundNames.Node Select'),
                         t('outboundNames.Auto Select'),
+                        "DIRECT",
                         ...DeepCopy(proxyList)
                     ]
                     // No default field
@@ -162,9 +162,9 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
             type: "selector",
             tag: fallBackTag,
             outbounds: [
-                "DIRECT",
                 t('outboundNames.Node Select'),
                 t('outboundNames.Auto Select'),
+                "DIRECT",
                 ...DeepCopy(proxyList)
             ]
             // No default field for Fall Back, usually client picks first available.
