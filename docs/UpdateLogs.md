@@ -7,6 +7,11 @@
 - 更新 `sing-box` 配置生成以符合 `sing-box v1.11.0+` 规范。
   - 将已弃用的“特殊出站”（如 `type: "block"`）替换为“规则操作”（例如，广告拦截规则使用 `action: "reject"`）。
   - 此更改解决了 `sing-box` 可能出现的弃用警告，并确保了未来的兼容性。
+- 增强 Sing-box 配置对 `clash_mode` 的支持。
+  - DNS 解析现在能感知模式：
+    - 在“direct”模式 (`clash_mode: "direct"`)下，DNS 查询主要使用直连 DNS 服务器 (例如 AliDNS DoH)。
+    - 在“global”模式 (`clash_mode: "global"`)下，DNS 查询主要使用适合代理的 DNS 服务器 (例如 Cloudflare DoH，DNS 查询本身通过选定的代理路由)。
+  - 此更改使常规流量路由和 DNS 行为与所选 `clash_mode` 更紧密地保持一致。
 
 ## 2025-04-30
 

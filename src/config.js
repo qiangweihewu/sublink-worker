@@ -387,7 +387,7 @@ export const SING_BOX_CONFIG = {
 		servers: [
 			{
 				tag: "dns_proxy",
-				address: "tcp://1.1.1.1",
+				address: "https://1.1.1.1/dns-query",
 				address_resolver: "dns_resolver",
 				strategy: "ipv4_only",
 				detour: "🚀 节点选择"
@@ -418,10 +418,8 @@ export const SING_BOX_CONFIG = {
 			}
 		],
 		rules: [
-			{
-				outbound: "any",
-				server: "dns_resolver"
-			},
+			{ "clash_mode": "direct", "server": "dns_direct" },
+			{ "clash_mode": "global", "server": "dns_proxy" },
 			{
 				rule_set: "geolocation-!cn",
 				query_type: [
