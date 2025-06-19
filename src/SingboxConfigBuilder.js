@@ -87,7 +87,8 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
 
     addOutboundGroups(outbounds, proxyList) { // outbounds are rule names
         this.config.outbounds = this.config.outbounds || [];
-        const directDefaultRuleNames = ['Location:CN', 'Private', 'Bilibili'];
+        const directDefaultRuleNames = ['Location:CN', 'Private', 'Bilibili', 'Microsoft', 'Apple'];
+        const addDirectOptionRuleNames = ['Social Media', 'Gaming', 'Education', 'Financial', 'Cloud Services'];
 
         outbounds.forEach(outboundRuleName => {
             const groupTag = t(`outboundNames.${outboundRuleName}`);
@@ -111,7 +112,20 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
                     ],
                     default: "DIRECT"
                 };
+            } else if (addDirectOptionRuleNames.includes(outboundRuleName)) {
+                groupDefinition = {
+                    type: "selector",
+                    tag: groupTag,
+                    outbounds: [
+                        "DIRECT",
+                        t('outboundNames.Node Select'),
+                        t('outboundNames.Auto Select'),
+                        ...DeepCopy(proxyList)
+                    ]
+                    // No default field
+                };
             } else {
+                // For any other group not explicitly handled above
                 groupDefinition = {
                     type: "selector",
                     tag: groupTag,
@@ -141,13 +155,20 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
     addFallBackGroup(proxyList) {
         this.config.outbounds = this.config.outbounds || [];
         const fallBackTag = t('outboundNames.Fall Back');
-        if (!this.config.outbounds.find(o => o.tag === fallBackTag)) {
-            this.config.outbounds.push({
-                type: "selector",
-                tag: fallBackTag,
-                outbounds: [t('outboundNames.Node Select'), ...DeepCopy(proxyList)]
-            });
-        }
+        // Ensure it's not added multiple times if logic allows for it
+        this.config.outbounds = this.config.outbounds.filter(o => o.tag !== fallBackTag);
+
+        this.config.outbounds.push({ // Push, as it's typically one of the last groups
+            type: "selector",
+            tag: fallBackTag,
+            outbounds: [
+                "DIRECT",
+                t('outboundNames.Node Select'),
+                t('outboundNames.Auto Select'),
+                ...DeepCopy(proxyList)
+            ]
+            // No default field for Fall Back, usually client picks first available.
+        });
     }
 
     formatConfig() {

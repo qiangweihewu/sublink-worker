@@ -15,6 +15,10 @@
 - 增强 Sing-box 特定服务组的配置。
   - 'Location:CN' (国内服务), 'Private' (私有网络), 和 'Bilibili' (哔哩哔哩) 的选择器组现在默认使用 'DIRECT' (直连) 出站。
   - 用户仍可根据需要为这些组手动选择其他选项，如 'Node Select' (节点选择) 或 'Auto Select' (自动选择)。
+- 进一步优化了 Sing-box 特定服务组的默认路由和选项。
+  - 'Microsoft' (微软) 和 'Apple' (苹果) 服务组现在也默认使用 'DIRECT' (直连) 出站。
+  - 'DIRECT' (直连) 已作为可选路由添加至 'Social Media' (社交媒体), 'Gaming' (游戏), 'Education' (教育), 'Financial' (金融), 'Cloud Services' (云服务), 以及 'Fall Back' (回退) 选择器组中。
+  - 这些更改为 Sing-box 配置中常用服务提供了更精细的控制和更合理的默认设置。
 
 ## 2025-04-30
 
