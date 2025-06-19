@@ -87,17 +87,38 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
 
     addOutboundGroups(outbounds, proxyList) { // outbounds are rule names
         this.config.outbounds = this.config.outbounds || [];
+        const directDefaultRuleNames = ['Location:CN', 'Private', 'Bilibili'];
+
         outbounds.forEach(outboundRuleName => {
             const groupTag = t(`outboundNames.${outboundRuleName}`);
-            if (!this.config.outbounds.find(o => o.tag === groupTag)) {
-                if (outboundRuleName === 'Ad Block') return; // 'Ad Block' rules use action:reject
 
-                this.config.outbounds.push({
+            if (this.config.outbounds.find(o => o.tag === groupTag)) {
+                return; // Skip if group with this tag already exists
+            }
+
+            if (outboundRuleName === 'Ad Block') return; // 'Ad Block' rules use action:reject
+
+            let groupDefinition;
+            if (directDefaultRuleNames.includes(outboundRuleName)) {
+                groupDefinition = {
+                    type: "selector",
+                    tag: groupTag,
+                    outbounds: [
+                        "DIRECT",
+                        t('outboundNames.Node Select'),
+                        t('outboundNames.Auto Select'),
+                        ...DeepCopy(proxyList)
+                    ],
+                    default: "DIRECT"
+                };
+            } else {
+                groupDefinition = {
                     type: "selector",
                     tag: groupTag,
                     outbounds: [t('outboundNames.Node Select'), ...DeepCopy(proxyList)]
-                });
+                };
             }
+            this.config.outbounds.push(groupDefinition);
         });
     }
 
