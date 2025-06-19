@@ -76,7 +76,7 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
             tag: t('outboundNames.Auto Select'),
             outbounds: DeepCopy(actualProxyTags),
             url: 'http://www.gstatic.com/generate_204', // Standard test URL
-            interval: 300, // Standard interval
+            interval: "300s", // Standard interval
             lazy: false
         });
 
