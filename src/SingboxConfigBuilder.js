@@ -63,8 +63,7 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
             tag: autoSelectTag,
             outbounds: DeepCopy(proxyList),
             url: 'http://www.gstatic.com/generate_204',
-            interval: "300s",
-            lazy: false
+            interval: "300s"
         });
     }
 
