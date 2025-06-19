@@ -203,7 +203,31 @@ async function handleRequest(request) {
     } else if (url.pathname === '/favicon.ico') {
       return Response.redirect('https://cravatar.cn/avatar/9240d78bbea4cf05fb04f2b86f22b18d?s=160&d=retro&r=g', 301)
     } else if (url.pathname === '/config') {
-      const { type, content } = await request.json();
+      let type, content;
+      try {
+          const jsonData = await request.json();
+          type = jsonData.type;
+          content = jsonData.content;
+          if (type === undefined || content === undefined) {
+              return new Response('Request JSON must include "type" and "content" fields.', {
+                  status: 400,
+                  headers: { 'Content-Type': 'text/plain' }
+              });
+          }
+      } catch (error) {
+          if (error instanceof SyntaxError) {
+              return new Response('Request body contains malformed JSON: ' + error.message, {
+                  status: 400,
+                  headers: { 'Content-Type': 'text/plain' }
+              });
+          }
+          console.error('Error parsing request.json() for /config:', error);
+          return new Response('Error parsing request JSON.', {
+              status: 500,
+              headers: { 'Content-Type': 'text/plain' }
+          });
+      }
+
       const configId = `${type}_${GenerateWebPath(8)}`;
 
       try {
