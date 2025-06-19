@@ -52,12 +52,23 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
         this.config.outbounds.push(proxy);
     }
 
-    _buildOutbounds() {
-        const actualProxyTags = this.config.outbounds
-            .filter(o => o.server !== undefined) // Heuristic to identify actual proxies
-            .map(p => p.tag);
+    addAutoSelectGroup(proxyList) {
+        // proxyList here is actualProxyTags from BaseConfigBuilder
+        const unifiedRuleNames = this.getOutboundsList(); // Method from BaseConfigBuilder
+        this._buildOutbounds(proxyList, unifiedRuleNames, this.customRules);
+    }
 
-        let newOutbounds = [...SING_BOX_CONFIG.outbounds]; // Start with base (DIRECT, REJECT - though REJECT was removed)
+    addNodeSelectGroup(proxyList) { /* All outbounds built by _buildOutbounds via addAutoSelectGroup */ }
+    addOutboundGroups(outbounds, proxyList) { /* All outbounds built by _buildOutbounds via addAutoSelectGroup */ }
+    addCustomRuleGroups(proxyList) { /* All outbounds built by _buildOutbounds via addAutoSelectGroup */ }
+    addFallBackGroup(proxyList) { /* All outbounds built by _buildOutbounds via addAutoSelectGroup */ }
+
+    _buildOutbounds(actualProxyTags, unifiedRuleNames, customRulesFromParam) {
+        // actualProxyTags is passed as proxyList from addAutoSelectGroup
+        // unifiedRuleNames is passed from this.getOutboundsList()
+        // customRulesFromParam is this.customRules
+
+        let newOutbounds = [...SING_BOX_CONFIG.outbounds]; // Start with base
 
         // 1. Auto Select Outbound
         newOutbounds.push({
@@ -107,18 +118,26 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
         // So, we need to merge `newOutbounds` with `this.config.outbounds` containing proxies.
         // Or, ensure this.config.outbounds only contains proxies before this step, then add them.
 
-        // Let's assume `this.config.outbounds` currently holds the base + actual proxies.
-        // We will filter out the base ones if they are re-added, then concat.
-        const currentProxies = this.config.outbounds.filter(o => o.server !== undefined);
-        newOutbounds.push(...currentProxies);
+        // Let's assume `this.config.outbounds` (from baseConfig in constructor, then modified by addProxyToConfig)
+        // currently holds the initial base (e.g. DIRECT) AND the actual proxies.
+        // We need to ensure actualProxyTags (which are just names) correctly refer to these existing proxy objects.
+        // The `actualProxyTags` param comes from `BaseConfigBuilder.getProxyNames(this.getProxies())`,
+        // where `this.getProxies()` filters `this.config.outbounds` for things with a `server` field.
+        // So, `actualProxyTags` is correct.
+
+        // We need to add the actual proxy objects from the current this.config.outbounds to newOutbounds.
+        const currentActualProxyObjects = this.config.outbounds.filter(o => o.server !== undefined);
+        newOutbounds.push(...currentActualProxyObjects);
 
 
         // 5. Service-specific and Custom Rule Selector Outbounds
-        const unifiedRuleObjects = generateRules(this.selectedRules, this.customRules);
+        // generateRules uses this.selectedRules and this.customRules internally already for its logic.
+        // For consistency with how _buildProxyGroups in Clash worked, we'll use customRulesFromParam here.
+        const unifiedRuleObjects = generateRules(this.selectedRules, customRulesFromParam); // Pass param if it's meant to override this.customRules
         const adBlockOutboundName = 'Ad Block';
 
         unifiedRuleObjects.forEach(rule => {
-            if (rule.outbound !== adBlockOutboundName) { // Don't create a selector for Ad Block
+            if (rule.outbound !== adBlockOutboundName) {
                 const groupTag = t(`outboundNames.${rule.outbound}`);
                 newOutbounds.push({
                     type: 'selector',
@@ -134,11 +153,10 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
             }
         });
 
-        if (Array.isArray(this.customRules)) {
-            this.customRules.forEach(rule => {
-                // Avoid duplicating if a custom rule has the same name as a unified rule
-                const groupTag = t(`outboundNames.${rule.name}`); // Assuming custom rule.name is used for translation key
-                if (!newOutbounds.find(o => o.tag === groupTag)) {
+        if (Array.isArray(customRulesFromParam)) {
+            customRulesFromParam.forEach(rule => {
+                const groupTag = t(`outboundNames.${rule.name}`);
+                if (!newOutbounds.find(o => o.tag === groupTag)) { // Avoid duplicate tags
                     newOutbounds.push({
                         type: 'selector',
                         tag: groupTag,
@@ -170,16 +188,16 @@ export class SingboxConfigBuilder extends BaseConfigBuilder {
     }
 
     formatConfig() {
-        // Call super.formatConfig() or equivalent part that parses proxies from inputString
-        // and adds them via this.addProxyToConfig().
-        // For this refactor, we assume `this.config.outbounds` (from constructor's baseConfig)
-        // already contains the initial base (DIRECT) and then `this.addProxyToConfig` has added the actual proxies.
+        // BaseConfigBuilder.build() (which is called by this.build()) will call:
+        // 1. this.parse() -> this.addProxy() -> this.addProxyToConfig() for each proxy.
+        //    This populates this.config.outbounds with DIRECT (from base) and actual proxies.
+        // 2. this.addSelectors() -> this.addAutoSelectGroup(actualProxyTagsFromProxies).
+        //    Our overridden addAutoSelectGroup then calls _buildOutbounds().
 
-        // Then, build the rest of the outbounds structure
-        this._buildOutbounds();
+        // So, the direct call to _buildOutbounds() here is removed.
 
-        const generatedRules = generateRules(this.selectedRules, this.customRules);
-        const { site_rule_sets, ip_rule_sets } = generateRuleSets(this.selectedRules, this.customRules);
+        const generatedRules = generateRules(this.selectedRules, this.customRules); // This could also use customRulesFromParam if formatConfig took it
+        const { site_rule_sets, ip_rule_sets } = generateRuleSets(this.selectedRules, this.customRules); // Same here
 
         this.config.route.rule_set = [...site_rule_sets, ...ip_rule_sets];
         this.config.route.rules = []; // Initialize/clear rules array
